@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代辦事項清單</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            margin-top: 20px;
+        }
+        .todo-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .completed {
+            text-decoration: line-through;
+            color: gray;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <h1 class="text-center">代辦事項清單</h1>
+
+                <div class="mb-3">
+                    <label for="studentIdInput" class="form-label">學生編號</label>
+                    <input id="studentIdInput" type="text" class="form-control" placeholder="請輸入您的學生編號">
+                </div>
+
+                <div class="input-group mb-3">
+                    <input id="taskInput" type="text" class="form-control" placeholder="新增一個代辦事項">
+                    <button id="addTaskBtn" class="btn btn-primary">新增</button>
+                </div>
+
+                <ul id="todoList" class="list-group">
+                    <!-- 代辦事項將顯示在此處 -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const apiBaseURL = "https://nfutest.pythonanywhere.com/todos";
+        const studentIdInput = document.getElementById("studentIdInput");
+        const taskInput = document.getElementById("taskInput");
+        const addTaskBtn = document.getElementById("addTaskBtn");
+        const todoList = document.getElementById("todoList");
+
+        // Fetch tasks for the current student
+        async function fetchTasks() {
+            const studentId = studentIdInput.value.trim();
+            if (!studentId) {
+                alert("請輸入學生編號。");
+                return;
+            }
+            const response = await fetch(`${apiBaseURL}?student_id=${studentId}`);
+            const data = await response.json();
+            renderTasks(data.todos);
+        }
+
+        // Render tasks to the DOM
+        function renderTasks(todos) {
+            todoList.innerHTML = ""; // Clear the list
+            todos.forEach((todo) => {
+                const listItem = document.createElement("li");
+                listItem.className = `list-group-item todo-item ${todo.completed ? 'completed' : ''}`;
+                listItem.innerHTML = `
+                    <div>
+                        <span>${todo.task}</span>
+                        <span class="badge bg-${todo.completed ? 'success' : 'secondary'}">${todo.completed ? '已完成' : '未完成'}</span>
+                    </div>
+                    <div>
+                        <button class="btn btn-warning btn-sm edit-btn" data-id="${todo.id}" data-task="${todo.task}" data-completed="${todo.completed}">編輯</button>
+                        <button class="btn btn-danger btn-sm delete-btn" data-id="${todo.id}">刪除</button>
+                    </div>
+                `;
+                todoList.appendChild(listItem);
+            });
+        }
+
+        // Add a new task
+        addTaskBtn.addEventListener("click", async () => {
+            const studentId = studentIdInput.value.trim();
+            const taskText = taskInput.value.trim();
+            if (!studentId || !taskText) {
+                alert("請輸入學生編號和代辦事項。");
+                return;
+            }
+
+            const response = await fetch(apiBaseURL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ student_id: studentId, task: taskText }),
+            });
+
+            if (response.ok) {
+                taskInput.value = "";
+                fetchTasks();
+            } else {
+                alert("新增代辦事項失敗。");
+            }
+        });
+
+        // Handle task actions
+        todoList.addEventListener("click", async (e) => {
+            const target = e.target;
+            const taskId = target.getAttribute("data-id");
+            const studentId = studentIdInput.value.trim();
+
+            if (!studentId) {
+                alert("請輸入學生編號。");
+                return;
+            }
+
+            if (target.classList.contains("edit-btn")) {
+                const newTask = prompt("修改代辦事項：", target.getAttribute("data-task"));
+                if (newTask === null) return; // Cancelled
+
+                const isCompleted = confirm("是否標記為已完成？");
+                const response = await fetch(`${apiBaseURL}/${taskId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ student_id: studentId, task: newTask, completed: isCompleted }),
+                });
+
+                if (response.ok) {
+                    fetchTasks();
+                } else {
+                    alert("更新代辦事項失敗。");
+                }
+            } else if (target.classList.contains("delete-btn")) {
+                const response = await fetch(`${apiBaseURL}/${taskId}`, {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ student_id: studentId }),
+                });
+
+                if (response.ok) {
+                    fetchTasks();
+                } else {
+                    alert("刪除代辦事項失敗。");
+                }
+            }
+        });
+
+        // Fetch tasks when the student ID is entered
+        studentIdInput.addEventListener("blur", fetchTasks);
+    </script>
+</body>
+</html>
